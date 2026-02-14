@@ -12,6 +12,8 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      CI_MONGO_URI: mongodb://127.0.0.1:27017/fixel_test
     strategy:
       matrix:
         node-version: [18.x, 20.x]
@@ -46,10 +48,35 @@ jobs:
             sudo dpkg -i /tmp/libssl1.1.deb || true
           fi
 
+      - name: Wait for Mongo service
+        if: runner.os == 'Linux'
+        run: |
+          echo "Waiting for MongoDB on 127.0.0.1:27017..."
+          for i in $(seq 1 30); do
+            if bash -c "</dev/tcp/127.0.0.1/27017" 2>/dev/null; then
+              echo "Mongo is up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for Mongo"; exit 1
+
       - name: Install dependencies
         run: npm ci
         env:
           CI_MONGO_URI: mongodb://127.0.0.1:27017/fixel_test
+
+      - name: Debug: print mongo env and check connectivity
+        run: |
+          echo "CI_MONGO_URI=$CI_MONGO_URI"
+          echo "MONGO_URI=$MONGO_URI"
+          node -e "console.log('node sees CI_MONGO_URI=' + process.env.CI_MONGO_URI); console.log('node sees MONGO_URI=' + process.env.MONGO_URI)"
+          echo 'Checking TCP connection to 127.0.0.1:27017 from runner:'
+          if bash -c "</dev/tcp/127.0.0.1/27017" 2>/dev/null; then
+            echo 'TCP port 27017 is open'
+          else
+            echo 'TCP port 27017 is NOT open'
+            netstat -tulpen || true
+          fi
 
       - name: Run lint
         run: npm run lint
@@ -57,9 +84,9 @@ jobs:
       - name: Run coverage
         env:
           NODE_ENV: test
-        run: npm run coverage -- --testTimeout=20000
+        run: npm run coverage -- --testTimeout=30000
 
       - name: Run tests
         env:
           NODE_ENV: test
-        run: npm test -- --testTimeout=20000
+        run: npm test -- --testTimeout=30000
