@@ -27,6 +27,18 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
+      - name: Install system libs required by mongodb-memory-server
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl1.1 || true
+          # If the distro doesn't provide libssl1.1, download a compatible .deb and install it
+          if [ ! -f /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ]; then
+            echo "libcrypto.so.1.1 not found, attempting to download libssl1.1 .deb"
+            wget -q -O /tmp/libssl1.1.deb "https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb" || true
+            sudo dpkg -i /tmp/libssl1.1.deb || true
+          fi
+
       - name: Install dependencies
         run: npm ci
 
@@ -36,9 +48,9 @@ jobs:
       - name: Run coverage
         env:
           NODE_ENV: test
-        run: npm run coverage
+        run: npm run coverage -- --testTimeout=20000
 
       - name: Run tests
         env:
           NODE_ENV: test
-        run: npm test
+        run: npm test -- --testTimeout=20000
