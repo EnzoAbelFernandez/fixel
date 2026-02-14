@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
+    "dev": "nodemon server.js",
+    "lint": "eslint .",
+    "coverage": "nyc --reporter=lcov --reporter=text --check-coverage --lines=80 --functions=80 --branches=75 --statements=80 npm test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "csv-parse": "^5.3.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^8.23.0",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.13.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "eslint": "^8.47.0",
+    "jest": "^29.6.1",
+    "mongodb-memory-server": "^8.12.3",
+    "nodemon": "^3.1.11",
+    "nyc": "^15.1.0",
+    "supertest": "^6.3.3"
+  }
+}
