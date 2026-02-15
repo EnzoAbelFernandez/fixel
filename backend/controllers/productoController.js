@@ -20,6 +20,7 @@ const crearProducto = async (req, res) => {
       precioVenta,
       stock: stock || 0
     });
+    
 
     // Generar codigoInterno si no viene
     if (!nuevoProducto.codigoInterno) {
