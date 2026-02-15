@@ -1,36 +1,36 @@
 const Venta = require('../models/Venta');
 const Producto = require('../models/Producto');
+const Combo = require('../models/Combo');
 const Usuario = require('../models/Usuario');
 const Counter = require('../models/Counter');
 const PDFDocument = require('pdfkit');
 const stream = require('stream');
 
-// Registrar venta con decremento atómico de stock por producto.
-// Si algún decremento falla por stock insuficiente, se revierte lo hecho.
+// Construye mapa productoId -> { cantidad, precioUnitario, costoUnitario } para decrementar stock
 const registrarVenta = async (req, res) => {
   try {
-    const { vendedorId, productosVendidos } = req.body;
-    // productosVendidos será un array de objetos: [{ productoId: '...', cantidad: 2 }]
+    const { vendedorId, productosVendidos = [], combosVendidos = [], descuento = 0, medioPago = 'Efectivo' } = req.body;
 
-    if (!vendedorId || !Array.isArray(productosVendidos) || productosVendidos.length === 0) {
-      return res.status(400).json({ msg: 'Faltan datos: vendedorId y productosVendidos son requeridos' });
+    if (!vendedorId || (productosVendidos.length === 0 && combosVendidos.length === 0)) {
+      return res.status(400).json({ msg: 'Faltan datos: vendedorId y al menos un producto o combo son requeridos' });
     }
 
-    // Verificar vendedor
     const vendedor = await Usuario.findById(vendedorId);
     if (!vendedor) return res.status(404).json({ msg: 'Vendedor no encontrado' });
 
-    let totalVenta = 0;
+    let totalAntesDescuento = 0;
     let totalCosto = 0;
     const detallesProductos = [];
+    const detallesCombos = [];
+    const decrementos = new Map(); // productoId -> cantidad a descontar
 
-    // 1. Recopilar información y preparar operaciones atómicas
-    for (let item of productosVendidos) {
+    // 1. Procesar productos individuales
+    for (const item of productosVendidos) {
       const productoDB = await Producto.findById(item.productoId);
       if (!productoDB) return res.status(404).json({ msg: `Producto no encontrado: ${item.productoId}` });
       if (item.cantidad <= 0) return res.status(400).json({ msg: 'La cantidad debe ser mayor que 0' });
 
-      totalVenta += productoDB.precioVenta * item.cantidad;
+      totalAntesDescuento += productoDB.precioVenta * item.cantidad;
       totalCosto += productoDB.costo * item.cantidad;
 
       detallesProductos.push({
@@ -39,73 +39,116 @@ const registrarVenta = async (req, res) => {
         precioVentaHistorico: productoDB.precioVenta,
         costoHistorico: productoDB.costo
       });
+
+      const key = productoDB._id.toString();
+      decrementos.set(key, (decrementos.get(key) || 0) + item.cantidad);
     }
 
+    // 2. Procesar combos
+    for (const item of combosVendidos) {
+      const comboDB = await Combo.findById(item.comboId).populate('items.producto');
+      if (!comboDB) return res.status(404).json({ msg: `Combo no encontrado: ${item.comboId}` });
+      if (item.cantidad <= 0) return res.status(400).json({ msg: 'La cantidad debe ser mayor que 0' });
+
+      let costoCombo = 0;
+      for (const it of comboDB.items) {
+        if (!it.producto) return res.status(404).json({ msg: 'Producto del combo no encontrado' });
+        costoCombo += it.producto.costo * it.cantidad;
+        const key = it.producto._id.toString();
+        decrementos.set(key, (decrementos.get(key) || 0) + it.cantidad * item.cantidad);
+      }
+
+      totalAntesDescuento += comboDB.precioVenta * item.cantidad;
+      totalCosto += costoCombo * item.cantidad;
+
+      detallesCombos.push({
+        combo: comboDB._id,
+        cantidad: item.cantidad,
+        precioVentaHistorico: comboDB.precioVenta,
+        costoHistorico: costoCombo
+      });
+    }
+
+    const descuentoNum = Math.max(0, parseFloat(descuento) || 0);
+    const totalVenta = Math.max(0, totalAntesDescuento - descuentoNum);
     const gananciaNeta = totalVenta - totalCosto;
 
-    // 2. Intentar decrementar stock y crear venta en una transacción si es posible
+    const medioPagoValido = ['Efectivo', 'Tarjeta', 'Transferencia', 'Otro'].includes(medioPago) ? medioPago : 'Efectivo';
+
+    // 3. Verificar stock para todos los decrementos
+    for (const [productoId, cantidad] of decrementos) {
+      const prod = await Producto.findById(productoId);
+      if (!prod) return res.status(404).json({ msg: 'Producto no encontrado' });
+      if (prod.stock < cantidad) {
+        return res.status(409).json({ msg: `Stock insuficiente para ${prod.nombre} (necesita ${cantidad}, hay ${prod.stock})` });
+      }
+    }
+
+    // 4. Transacción: decrementar stock y crear venta
     const session = await Producto.startSession();
     let nuevaVenta;
     try {
       session.startTransaction();
 
-      // Decrementos atómicos con la sesión
-      for (let item of productosVendidos) {
+      for (const [productoId, cantidad] of decrementos) {
         const updated = await Producto.findOneAndUpdate(
-          { _id: item.productoId, stock: { $gte: item.cantidad } },
-          { $inc: { stock: -item.cantidad } },
+          { _id: productoId, stock: { $gte: cantidad } },
+          { $inc: { stock: -cantidad } },
           { new: true, session }
         );
         if (!updated) {
           await session.abortTransaction();
-          return res.status(409).json({ msg: `Stock insuficiente para el producto ${item.productoId}` });
+          return res.status(409).json({ msg: `Stock insuficiente para el producto ${productoId}` });
         }
       }
 
-      // Generar facturaNumero secuencial
       const cnt = await Counter.findByIdAndUpdate({ _id: 'venta' }, { $inc: { seq: 1 } }, { upsert: true, new: true, session });
 
-      // Crear la venta dentro de la transacción
       nuevaVenta = new Venta({
         vendedor: vendedorId,
         productos: detallesProductos,
+        combos: detallesCombos,
+        totalAntesDescuento,
+        descuento: descuentoNum,
         totalVenta,
         totalCosto,
         gananciaNeta,
+        medioPago: medioPagoValido,
         facturaNumero: cnt.seq
       });
       await nuevaVenta.save({ session });
 
       await session.commitTransaction();
     } catch (txErr) {
-      // Si las transacciones no están soportadas, fallback al método anterior
       try {
         await session.abortTransaction();
-      } catch (e) { /* ignore abort errors */ }
-      // Fallback: intentar decrementos sin transacción (ya implementado antes)
+      } catch (e) { /* ignore */ }
       const updatedProducts = [];
-      for (let item of productosVendidos) {
+      for (const [productoId, cantidad] of decrementos) {
         const updated = await Producto.findOneAndUpdate(
-          { _id: item.productoId, stock: { $gte: item.cantidad } },
-          { $inc: { stock: -item.cantidad } },
+          { _id: productoId, stock: { $gte: cantidad } },
+          { $inc: { stock: -cantidad } },
           { new: true }
         );
         if (!updated) {
-          for (let u of updatedProducts) {
-            await Producto.findByIdAndUpdate(u._id, { $inc: { stock: u.cantidad } });
+          for (const u of updatedProducts) {
+            await Producto.findByIdAndUpdate(u.id, { $inc: { stock: u.cantidad } });
           }
-          return res.status(409).json({ msg: `Stock insuficiente para el producto ${item.productoId}` });
+          return res.status(409).json({ msg: `Stock insuficiente para el producto ${productoId}` });
         }
-        updatedProducts.push({ _id: updated._id, cantidad: item.cantidad });
+        updatedProducts.push({ id: productoId, cantidad });
       }
-
       const cnt = await Counter.findByIdAndUpdate({ _id: 'venta' }, { $inc: { seq: 1 } }, { upsert: true, new: true });
       nuevaVenta = new Venta({
         vendedor: vendedorId,
         productos: detallesProductos,
+        combos: detallesCombos,
+        totalAntesDescuento,
+        descuento: descuentoNum,
         totalVenta,
         totalCosto,
         gananciaNeta,
+        medioPago: medioPagoValido,
         facturaNumero: cnt.seq
       });
       await nuevaVenta.save();
@@ -120,31 +163,30 @@ const registrarVenta = async (req, res) => {
   }
 };
 
-module.exports = { registrarVenta };
-
-// Exportar venta como CSV o PDF
 const exportVenta = async (req, res) => {
   try {
     const { id } = req.params;
-    const { format } = req.query; // 'csv' or 'pdf'
-    const venta = await Venta.findById(id).populate('vendedor productos.producto');
+    const { format } = req.query;
+    const venta = await Venta.findById(id).populate('vendedor productos.producto combos.combo');
     if (!venta) return res.status(404).json({ msg: 'Venta no encontrada' });
 
     if (format === 'csv') {
-      // Crear CSV simple
-      let csv = 'facturaNumero,fecha,vendedor,totalVenta,totalCosto,gananciaNeta\n';
-      csv += `${venta.facturaNumero || ''},${venta.fecha.toISOString()},${venta.vendedor.nombre || ''},${venta.totalVenta},${venta.totalCosto},${venta.gananciaNeta}\n\n`;
-      csv += 'producto,cantidad,precioVentaHistorico,costoHistorico\n';
+      let csv = 'facturaNumero,fecha,vendedor,medioPago,totalAntesDescuento,descuento,totalVenta,totalCosto,gananciaNeta\n';
+      csv += `${venta.facturaNumero || ''},${venta.fecha.toISOString()},${venta.vendedor.nombre || ''},${venta.medioPago || ''},${venta.totalAntesDescuento || venta.totalVenta},${venta.descuento || 0},${venta.totalVenta},${venta.totalCosto},${venta.gananciaNeta}\n\n`;
+      csv += 'producto/combo,cantidad,precioVentaHistorico,costoHistorico\n';
       for (const p of venta.productos) {
         const nombre = p.producto ? p.producto.nombre : p.producto;
         csv += `${nombre},${p.cantidad},${p.precioVentaHistorico},${p.costoHistorico}\n`;
+      }
+      for (const c of venta.combos || []) {
+        const nombre = c.combo ? c.combo.nombre : c.combo;
+        csv += `${nombre} (combo),${c.cantidad},${c.precioVentaHistorico},${c.costoHistorico}\n`;
       }
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename=venta_${venta._id}.csv`);
       return res.send(csv);
     }
 
-    // PDF
     const doc = new PDFDocument();
     const passthrough = new stream.PassThrough();
     res.setHeader('Content-Type', 'application/pdf');
@@ -154,13 +196,22 @@ const exportVenta = async (req, res) => {
     doc.moveDown();
     doc.fontSize(12).text(`Fecha: ${venta.fecha.toISOString()}`);
     doc.text(`Vendedor: ${venta.vendedor.nombre || ''}`);
+    doc.text(`Medio de pago: ${venta.medioPago || 'Efectivo'}`);
     doc.moveDown();
     doc.text('Productos:');
     venta.productos.forEach(p => {
       const nombre = p.producto ? p.producto.nombre : p.producto;
       doc.text(`- ${nombre} x${p.cantidad} @ ${p.precioVentaHistorico} (costo ${p.costoHistorico})`);
     });
+    (venta.combos || []).forEach(c => {
+      const nombre = c.combo ? c.combo.nombre : c.combo;
+      doc.text(`- ${nombre} x${c.cantidad} (combo) @ ${c.precioVentaHistorico}`);
+    });
     doc.moveDown();
+    if (venta.descuento > 0) {
+      doc.text(`Subtotal: ${venta.totalAntesDescuento}`);
+      doc.text(`Descuento: -${venta.descuento}`);
+    }
     doc.text(`Total venta: ${venta.totalVenta}`);
     doc.text(`Total costo: ${venta.totalCosto}`);
     doc.text(`Ganancia neta: ${venta.gananciaNeta}`);
