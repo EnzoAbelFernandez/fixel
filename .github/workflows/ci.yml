@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ '**' ] # Ahora se ejecutará en cualquier rama
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -37,57 +37,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
-      - name: Install system libs required by mongodb-memory-server
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl1.1 || true
-          # If the distro doesn't provide libssl1.1, download a compatible .deb and install it
-          if [ ! -f /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ]; then
-            echo "libcrypto.so.1.1 not found, attempting to download libssl1.1 .deb"
-            wget -q -O /tmp/libssl1.1.deb "https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb" || true
-            sudo dpkg -i /tmp/libssl1.1.deb || true
-          fi
-
-      - name: Wait for Mongo service
-        if: runner.os == 'Linux'
-        run: |
-          echo "Waiting for MongoDB on 127.0.0.1:27017..."
-          for i in $(seq 1 30); do
-            if bash -c "</dev/tcp/127.0.0.1/27017" 2>/dev/null; then
-              echo "Mongo is up"; exit 0
-            fi
-            sleep 1
-          done
-          echo "Timed out waiting for Mongo"; exit 1
-
       - name: Install dependencies
         run: npm ci
         env:
           CI_MONGO_URI: mongodb://127.0.0.1:27017/fixel_test
 
-      - name: Debug: print mongo env and check connectivity
-        run: |
-          echo "CI_MONGO_URI=$CI_MONGO_URI"
-          echo "MONGO_URI=$MONGO_URI"
-          node -e "console.log('node sees CI_MONGO_URI=' + process.env.CI_MONGO_URI); console.log('node sees MONGO_URI=' + process.env.MONGO_URI)"
-          echo 'Checking TCP connection to 127.0.0.1:27017 from runner:'
-          if bash -c "</dev/tcp/127.0.0.1/27017" 2>/dev/null; then
-            echo 'TCP port 27017 is open'
-          else
-            echo 'TCP port 27017 is NOT open'
-            netstat -tulpen || true
-          fi
-
       - name: Run lint
         run: npm run lint
 
-      - name: Run coverage
+      - name: Run tests with coverage
         env:
           NODE_ENV: test
+        # npm run coverage ya ejecuta los tests; no hace falta un segundo paso
         run: npm run coverage -- --testTimeout=30000
-
-      - name: Run tests
-        env:
-          NODE_ENV: test
-        run: npm test -- --testTimeout=30000
