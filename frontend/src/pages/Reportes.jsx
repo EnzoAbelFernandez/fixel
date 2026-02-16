@@ -2,16 +2,27 @@ import { useState, useEffect } from 'react'
 import { reportes } from '../api/client'
 
 export default function Reportes() {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const [mode, setMode] = useState('day') // 'day' o 'range'
+  const [day, setDay] = useState(todayStr)
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
+
+  // Calcular primer día del mes actual (YYYY-MM-01)
+  const firstOfMonth = todayStr.slice(0, 8) + '01'
   const [ventasData, setVentasData] = useState(null)
   const [perdidasData, setPerdidasData] = useState(null)
   const [balanceData, setBalanceData] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const params = {}
-  if (start) params.start = start
-  if (end) params.end = end
+  if (mode === 'day') {
+    params.start = day
+    params.end = day
+  } else {
+    if (start) params.start = start
+    if (end) params.end = end
+  }
 
   const load = async () => {
     setLoading(true)
@@ -31,14 +42,39 @@ export default function Reportes() {
     }
   }
 
-  useEffect(() => { load() }, [start, end])
+  useEffect(() => { load() }, [mode, day, start, end])
+
+  const changeDay = (delta) => {
+    const d = new Date(day)
+    d.setDate(d.getDate() + delta)
+    setDay(d.toISOString().slice(0, 10))
+  }
+
+  // Cambiar a modo rango y setear fechas por defecto
+  const handleSetRangeMode = () => {
+    setStart(firstOfMonth)
+    setEnd(todayStr)
+    setMode('range')
+  }
 
   return (
     <>
       <h1 className="page-title">Reportes</h1>
-      <div className="flex mb-2" style={{ gap: 12 }}>
-        <input type="date" value={start} onChange={(e) => setStart(e.target.value)} placeholder="Desde" />
-        <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="Hasta" />
+      <div className="flex mb-2" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {mode === 'day' ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" onClick={() => changeDay(-1)}>&lt;</button>
+            <input type="date" value={day} onChange={e => setDay(e.target.value)} style={{ minWidth: 120 }} />
+            <button type="button" onClick={() => changeDay(1)}>&gt;</button>
+            <button style={{width: '100%'}} type="button" className="secondary" onClick={handleSetRangeMode}>Ver periodo</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="date" value={start} onChange={e => setStart(e.target.value)} placeholder="Desde" style={{ minWidth: 120 }} />
+            <input type="date" value={end} onChange={e => setEnd(e.target.value)} placeholder="Hasta" style={{ minWidth: 120 }} />
+            <button style={{width: '100%'}} type="button" className="secondary" onClick={() => setMode('day')}>Ver día</button>
+          </div>
+        )}
       </div>
 
       {loading ? (

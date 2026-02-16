@@ -6,12 +6,24 @@ const ventasPorPeriodo = async (req, res) => {
   try {
     const { start, end } = req.query;
     const match = {};
-    if (start || end) match.fecha = {};
-    if (start) match.fecha.$gte = new Date(start);
-    if (end) {
-      const e = new Date(end);
-      e.setHours(23,59,59,999);
-      match.fecha.$lte = e;
+    if (start && end && start === end) {
+      // Solo un día: filtrar desde 00:00 hasta 23:59:59 en GMT-3
+      const offset = -3 // GMT-3
+      const ini = new Date(start)
+      ini.setUTCHours(0 - offset,0,0,0)
+      const fin = new Date(end)
+      fin.setUTCHours(23 - offset,59,59,999)
+      match.fecha = { $gte: ini, $lte: fin }
+    } else {
+      if (start || end) match.fecha = {}
+      if (start) match.fecha.$gte = new Date(start)
+      if (end) {
+        // Ajustar fin para cubrir todo el día local GMT-3
+        const offset = -3 // GMT-3
+        const e = new Date(end)
+        e.setUTCHours(23 - offset,59,59,999)
+        match.fecha.$lte = e
+      }
     }
 
     const agg = [
@@ -44,12 +56,22 @@ const perdidasPorPeriodo = async (req, res) => {
   try {
     const { start, end } = req.query;
     const filtro = {};
-    if (start || end) filtro.fecha = {};
-    if (start) filtro.fecha.$gte = new Date(start);
-    if (end) {
-      const e = new Date(end);
-      e.setHours(23,59,59,999);
-      filtro.fecha.$lte = e;
+    if (start && end && start === end) {
+      const offset = -3 // GMT-3
+      const ini = new Date(start)
+      ini.setUTCHours(0 - offset,0,0,0)
+      const fin = new Date(end)
+      fin.setUTCHours(23 - offset,59,59,999)
+      filtro.fecha = { $gte: ini, $lte: fin }
+    } else {
+      if (start || end) filtro.fecha = {}
+      if (start) filtro.fecha.$gte = new Date(start)
+      if (end) {
+        const offset = -3 // GMT-3
+        const e = new Date(end)
+        e.setUTCHours(23 - offset,59,59,999)
+        filtro.fecha.$lte = e
+      }
     }
 
     const agg = [
