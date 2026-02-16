@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Layout({ children }) {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
 
@@ -11,8 +13,16 @@ export default function Layout({ children }) {
   }
 
   return (
-    <div className="app">
-      <aside className="sidebar">
+    <div className={`app ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
+      <button
+        className="sidebar-toggle"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        title={sidebarOpen ? 'Ocultar menú' : 'Mostrar menú'}
+        aria-label={sidebarOpen ? 'Ocultar menú' : 'Mostrar menú'}
+      >
+        {sidebarOpen ? '‹' : '›'}
+      </button>
+      <aside className={`sidebar ${sidebarOpen ? '' : 'sidebar-hidden'}`}>
         <h2>Fixcel</h2>
         <NavLink to="/">Inicio</NavLink>
         <NavLink to="/productos">Productos</NavLink>
