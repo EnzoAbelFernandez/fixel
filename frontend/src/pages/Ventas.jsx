@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
-import { productos, combos, ventas, usuarios } from '../api/client'
+import { productos, combos, ventas, usuarios, categorias } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+
 
 const MEDIOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia', 'Otro']
 
 export default function Ventas() {
+  const [busqueda, setBusqueda] = useState('')
   const [productosList, setProductosList] = useState([])
+  const [categoriasList, setCategoriasList] = useState([])
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('todos')
   const [combosList, setCombosList] = useState([])
   const [usuariosList, setUsuariosList] = useState([])
   const [carrito, setCarrito] = useState([])
@@ -20,6 +24,7 @@ export default function Ventas() {
 
   useEffect(() => {
     productos.list().then(({ data }) => setProductosList(data))
+    categorias.list().then(({ data }) => setCategoriasList(data))
     combos.list().then(({ data }) => setCombosList(data))
     if (isAdmin) usuarios.list().then(({ data }) => setUsuariosList(data))
     else setVendedorId(user?.id)
@@ -110,44 +115,149 @@ export default function Ventas() {
       {error && <div className="alert error">{error}</div>}
       {success && <div className="alert success">{success}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 24 }}>
-        <div>
-          <div className="card mb-2">
-            <h3 className="mb-2">Productos</h3>
-            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-              {productosList.filter((p) => p.stock > 0).map((p) => (
-                <div key={p._id} className="flex mb-1" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div><strong>{p.nombre}</strong> — ${p.precioVenta?.toLocaleString()} (stock: {p.stock})</div>
-                  <div className="flex">
-                    <input type="number" min="1" max={p.stock} defaultValue="1" style={{ width: 60 }} onBlur={(e) => { const v = parseInt(e.target.value, 10); if (v > 0) addToCarrito(p, v) }} />
-                    <button className="secondary" style={{ padding: '6px 12px', marginLeft: 8 }} onClick={() => addToCarrito(p)}>+</button>
-                  </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '260px 1fr 400px',
+        gap: 24,
+        height: 'calc(100vh - 110px)', // Ajusta según header/navbar
+        minHeight: 500
+      }}>
+        {/* Columna de categorías */}
+        <div className="card mb-2" style={{ padding: 0, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <h3 className="mb-2" style={{ padding: '16px 16px 0 16px' }}>Categorías</h3>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+            <div
+              className={categoriaSeleccionada === 'todos' ? 'selected' : ''}
+              style={{ padding: 8, cursor: 'pointer', borderRadius: 4, background: categoriaSeleccionada === 'todos' ? 'var(--primary-light)' : 'none', fontWeight: categoriaSeleccionada === 'todos' ? 600 : 400, marginBottom: 4 }}
+              onClick={() => setCategoriaSeleccionada('todos')}
+            >
+              Todos los productos
+            </div>
+            {categoriasList.map(cat => (
+              <div
+                key={cat._id}
+                className={categoriaSeleccionada === cat._id ? 'selected' : ''}
+                style={{ padding: 8, cursor: 'pointer', borderRadius: 4, background: categoriaSeleccionada === cat._id ? 'var(--primary-light)' : 'none', fontWeight: categoriaSeleccionada === cat._id ? 600 : 400, marginBottom: 4 }}
+                onClick={() => setCategoriaSeleccionada(cat._id)}
+              >
+                {cat.nombre}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Listado de productos filtrado */}
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div className="card mb-2" style={{ flex: '7 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <h3 className="mb-2" style={{ marginBottom: 0 }}>Productos</h3>
+              <input
+                type="text"
+                placeholder="Buscar producto..."
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--background)', color: '#fff' }}
+              />
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+              gap: 14,
+              flex: 1,
+              overflowY: 'auto',
+              padding: 4,
+              background: 'var(--background)',
+              alignContent: 'flex-start'
+            }}>
+              {productosList.filter((p) => {
+                const coincideBusqueda = busqueda.trim() === '' || p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase());
+                const coincideCategoria = categoriaSeleccionada === 'todos' || (typeof p.categoria === 'object' ? p.categoria?._id === categoriaSeleccionada : p.categoria === categoriaSeleccionada);
+                return p.stock > 0 && coincideCategoria && coincideBusqueda;
+              }).map((p) => (
+                <div
+                  key={p._id}
+                  onClick={() => addToCarrito(p, 1)}
+                  style={{
+                    cursor: 'pointer',
+                    border: '2px solid #334155',
+                    borderRadius: 10,
+                    padding: '18px 8px 14px 8px',
+                    background: 'var(--background, #23293a)',
+                    boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)',
+                    textAlign: 'center',
+                    userSelect: 'none',
+                    transition: 'box-shadow 0.15s, border 0.15s',
+                    color: '#fff',
+                    fontFamily: 'inherit',
+                    fontSize: 15,
+                    fontWeight: 500,
+                  }}
+                  className="product-tile"
+                  title="Agregar al carrito"
+                  onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 16px 0 rgba(0,0,0,0.10)'}
+                  onMouseOut={e => e.currentTarget.style.boxShadow = '0 2px 8px 0 rgba(0,0,0,0.04)'}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{p.nombre}</div>
+                  <div style={{ color: 'var(--primary-light)', fontWeight: 800, fontSize: 18 }}>${p.precioVenta?.toLocaleString()}</div>
                 </div>
               ))}
+              {productosList.filter((p) => p.stock > 0 && (categoriaSeleccionada === 'todos' || (typeof p.categoria === 'object' ? p.categoria?._id === categoriaSeleccionada : p.categoria === categoriaSeleccionada))).length === 0 && (
+                <p className="text-muted" style={{ gridColumn: '1/-1' }}>No hay productos en esta categoría</p>
+              )}
             </div>
           </div>
 
-          <div className="card mb-2">
+          <div className="card mb-2" style={{ flex: '3 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <h3 className="mb-2">Combos</h3>
-            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+              gap: 14,
+              flex: 1,
+              overflowY: 'auto',
+              padding: 4,
+              background: 'var(--background)',
+              alignContent: 'flex-start'
+            }}>
               {combosList.map((c) => {
                 const ok = tieneStockCombo(c)
                 return (
-                  <div key={c._id} className="flex mb-1" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div>
-                      <strong>{c.nombre}</strong> — ${c.precioVenta?.toLocaleString()}
-                      {!ok && <span className="text-danger" style={{ fontSize: '0.85rem', marginLeft: 8 }}>Sin stock</span>}
-                    </div>
-                    <button className="secondary" style={{ padding: '6px 12px' }} onClick={() => addComboToCarrito(c)} disabled={!ok}>+</button>
+                  <div
+                    key={c._id}
+                    onClick={() => ok && addComboToCarrito(c, 1)}
+                    style={{
+                      cursor: ok ? 'pointer' : 'not-allowed',
+                      border: '2px solid #334155',
+                      borderRadius: 10,
+                      padding: '18px 8px 14px 8px',
+                      background: 'var(--background, #23293a)',
+                      boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)',
+                      textAlign: 'center',
+                      userSelect: 'none',
+                      transition: 'box-shadow 0.15s, border 0.15s',
+                      color: '#fff',
+                      fontFamily: 'inherit',
+                      fontSize: 15,
+                      fontWeight: 500,
+                      opacity: ok ? 1 : 0.5
+                    }}
+                    className="product-tile"
+                    title={ok ? 'Agregar al carrito' : 'Sin stock'}
+                    onMouseOver={e => ok && (e.currentTarget.style.boxShadow = '0 4px 16px 0 rgba(0,0,0,0.10)')}
+                    onMouseOut={e => ok && (e.currentTarget.style.boxShadow = '0 2px 8px 0 rgba(0,0,0,0.04)')}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{c.nombre}</div>
+                    <div style={{ color: 'var(--primary-light)', fontWeight: 800, fontSize: 18 }}>${c.precioVenta?.toLocaleString()}</div>
+                    {!ok && <div className="text-danger" style={{ fontSize: '0.85rem', marginTop: 6 }}>Sin stock</div>}
                   </div>
                 )
               })}
-              {combosList.length === 0 && <p className="text-muted">No hay combos creados</p>}
+              {combosList.length === 0 && <p className="text-muted" style={{ gridColumn: '1/-1' }}>No hay combos creados</p>}
             </div>
           </div>
         </div>
 
-        <div className="card">
+        <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <h3 className="mb-2">Carrito</h3>
           {isAdmin && (
             <div className="form-group mb-2">
@@ -162,12 +272,14 @@ export default function Ventas() {
             <p className="text-muted">Carrito vacío. Agregá productos o combos.</p>
           ) : (
             <>
-              <div style={{ maxHeight: 220, overflowY: 'auto', marginBottom: 16 }}>
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16 }}>
                 {carrito.map((c) => (
                   <div key={c.productoId} className="flex mb-1" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div>{c.producto?.nombre} x{c.cantidad}</div>
-                    <div className="flex">
-                      <input type="number" min="1" value={c.cantidad} onChange={(e) => updateCantidad(c.productoId, parseInt(e.target.value, 10) || 1)} style={{ width: 50 }} />
+                    <div>{c.producto?.nombre}</div>
+                    <div className="flex" style={{ alignItems: 'center' }}>
+                      <button className="secondary" style={{ padding: '2px 8px', fontSize: 18 }} onClick={() => updateCantidad(c.productoId, c.cantidad - 1)}>-</button>
+                      <span style={{ margin: '0 10px', minWidth: 24, textAlign: 'center' }}>{c.cantidad}</span>
+                      <button className="secondary" style={{ padding: '2px 8px', fontSize: 18 }} onClick={() => updateCantidad(c.productoId, c.cantidad + 1)}>+</button>
                       <span style={{ marginLeft: 8 }}>${((c.producto?.precioVenta || 0) * c.cantidad).toLocaleString()}</span>
                       <button className="danger" style={{ padding: '4px 8px', marginLeft: 6 }} onClick={() => removeFromCarrito(c.productoId)}>×</button>
                     </div>
