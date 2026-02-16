@@ -27,6 +27,20 @@ const seed = async () => {
       console.log('Usuario admin ya existía. Contraseña actualizada (dev).', admin._id.toString());
     }
 
+    // Usuario vendedor de ejemplo
+    const emailVendedor = 'vendedor@fixel.local';
+    let vendedor = await Usuario.findOne({ email: emailVendedor });
+    const hashVendedor = await bcrypt.hash('vendedor123', salt);
+    if (!vendedor) {
+      vendedor = new Usuario({ nombre: 'Vendedor', email: emailVendedor, password: hashVendedor, rol: 'Vendedor' });
+      await vendedor.save();
+      console.log('Usuario vendedor creado:', vendedor._id.toString(), ' password: vendedor123');
+    } else {
+      vendedor.password = hashVendedor;
+      await vendedor.save();
+      console.log('Usuario vendedor ya existía. Contraseña actualizada (dev).', vendedor._id.toString());
+    }
+
     // Producto ejemplo
     const nombreProd = 'Cargador Rápido 20W USB-C';
     let producto = await Producto.findOne({ nombre: nombreProd });

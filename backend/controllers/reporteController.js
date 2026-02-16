@@ -1,7 +1,7 @@
 const Venta = require('../models/Venta');
 const GarantiaPerdida = require('../models/GarantiaPerdida');
 
-// Ventas por periodo: suma totalVenta y cantidad de productos vendidos
+// Ventas por periodo: suma totalVenta, cantidad de ventas y productos vendidos
 const ventasPorPeriodo = async (req, res) => {
   try {
     const { start, end } = req.query;
@@ -16,13 +16,23 @@ const ventasPorPeriodo = async (req, res) => {
 
     const agg = [
       { $match: match },
-      { $unwind: '$productos' },
-      { $group: { _id: null, totalIngresos: { $sum: '$totalVenta' }, cantidadVendida: { $sum: '$productos.cantidad' }, totalCosto: { $sum: '$totalCosto' } } },
-      { $project: { _id: 0, totalIngresos: 1, cantidadVendida: 1, totalCosto: 1, gananciaNeta: { $subtract: ['$totalIngresos', '$totalCosto'] } } }
+      { $addFields: {
+        itemsSum: { $sum: { $ifNull: ['$productos.cantidad', []] } },
+        combosSum: { $sum: { $ifNull: ['$combos.cantidad', []] } }
+      }},
+      { $group: {
+        _id: null,
+        totalIngresos: { $sum: '$totalVenta' },
+        totalCosto: { $sum: '$totalCosto' },
+        cantidadVentas: { $sum: 1 },
+        cantidadProductos: { $sum: { $add: [{ $ifNull: ['$itemsSum', 0] }, { $ifNull: ['$combosSum', 0] }] } }
+      }},
+      { $project: { _id: 0, totalIngresos: 1, totalCosto: 1, cantidadVentas: 1, cantidadProductos: 1, gananciaNeta: { $subtract: ['$totalIngresos', '$totalCosto'] } } }
     ];
 
     const resAgg = await Venta.aggregate(agg);
-    res.status(200).json(resAgg[0] || { totalIngresos: 0, cantidadVendida: 0, totalCosto: 0, gananciaNeta: 0 });
+    const r = resAgg[0] || { totalIngresos: 0, totalCosto: 0, cantidadVentas: 0, cantidadProductos: 0, gananciaNeta: 0 };
+    res.status(200).json({ ...r, cantidadVendida: r.cantidadProductos });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Error al generar reporte de ventas' });
