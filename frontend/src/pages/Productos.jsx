@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { productos, bulk } from '../api/client'
+import { productos, bulk, categorias } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 
 export default function Productos() {
@@ -9,6 +9,10 @@ export default function Productos() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [cats, setCats] = useState([])
+  const [catLoading, setCatLoading] = useState(false)
+  const [catError, setCatError] = useState('')
+  const [showCatInput, setShowCatInput] = useState(false)
   const { isAdmin } = useAuth()
 
   const [form, setForm] = useState({
@@ -26,20 +30,37 @@ export default function Productos() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  const loadCats = async () => {
+    setCatLoading(true)
+    setCatError('')
+    try {
+      const { data } = await categorias.list()
+      setCats(data)
+    } catch (e) {
+      setCatError(e.response?.data?.msg || 'Error al cargar categorías')
+    } finally {
+      setCatLoading(false)
+    }
+  }
+
+  useEffect(() => { load(); loadCats(); }, [])
 
   const openCreate = () => {
     setEditing(null)
     setForm({ nombre: '', categoria: '', codigoBarras: '', costo: '', precioVenta: '', stock: 0 })
+    setShowCatInput(false)
     setShowModal(true)
   }
 
   const openEdit = (p) => {
     setEditing(p)
     setForm({
-      nombre: p.nombre, categoria: p.categoria, codigoBarras: p.codigoBarras || '',
+      nombre: p.nombre,
+      categoria: typeof p.categoria === 'object' && p.categoria?._id ? p.categoria._id : p.categoria,
+      codigoBarras: p.codigoBarras || '',
       costo: p.costo, precioVenta: p.precioVenta, stock: p.stock
     })
+    setShowCatInput(false)
     setShowModal(true)
   }
 
@@ -47,8 +68,16 @@ export default function Productos() {
     e.preventDefault()
     setError('')
     try {
+      let catId = form.categoria
+      if (showCatInput && form.categoria && !cats.some(c => c.nombre === form.categoria)) {
+        // Crear nueva categoría
+        const { data } = await categorias.create({ nombre: form.categoria })
+        catId = data._id
+        await loadCats()
+      }
       const payload = {
         ...form,
+        categoria: catId,
         costo: parseFloat(form.costo) || 0,
         precioVenta: parseFloat(form.precioVenta) || 0,
         stock: parseInt(form.stock, 10) || 0
@@ -127,9 +156,9 @@ export default function Productos() {
             <tbody>
               {items.map((p) => (
                 <tr key={p._id}>
-                  <td>{p.codigoInterno || '-'}</td>
+                  <td>{p.codigoBarras || p.codigoInterno || '-'}</td>
                   <td>{p.nombre}</td>
-                  <td>{p.categoria}</td>
+                  <td>{typeof p.categoria === 'object' ? p.categoria?.nombre : (cats.find(c => c._id === p.categoria)?.nombre || p.categoria || '-')}</td>
                   <td className={p.stock <= 0 ? 'text-danger' : ''}>{p.stock}</td>
                   <td>${p.costo?.toLocaleString()}</td>
                   <td>${p.precioVenta?.toLocaleString()}</td>
@@ -159,7 +188,22 @@ export default function Productos() {
                 </div>
                 <div className="form-group">
                   <label>Categoría *</label>
-                  <input value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} required />
+                  {!showCatInput ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} required>
+                        <option value="">Seleccionar...</option>
+                        {cats.map(c => <option key={c._id} value={c._id}>{c.nombre}</option>)}
+                      </select>
+                      <button type="button" className="secondary" onClick={() => { setShowCatInput(true); setForm(f => ({ ...f, categoria: '' })) }}>Nueva</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} required placeholder="Nombre de la categoría" />
+                      <button type="button" className="secondary" onClick={() => setShowCatInput(false)}>Cancelar</button>
+                    </div>
+                  )}
+                  {catLoading && <span className="text-muted">Cargando categorías...</span>}
+                  {catError && <span className="text-danger">{catError}</span>}
                 </div>
                 <div className="form-group">
                   <label>Código de barras</label>

@@ -1,3 +1,9 @@
+export const categorias = {
+  list: () => client.get('/categorias'),
+  create: (data) => client.post('/categorias', data),
+  update: (id, data) => client.put(`/categorias/${id}`, data),
+  delete: (id) => client.delete(`/categorias/${id}`)
+}
 import axios from 'axios'
 
 const API_BASE = '/api'

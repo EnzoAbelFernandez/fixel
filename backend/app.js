@@ -17,6 +17,8 @@ app.use('/api/productos', require('./routes/productoRoutes'));
 app.use('/api/combos', require('./routes/comboRoutes'));
 app.use('/api/garantias', require('./routes/garantiaRoutes'));
 app.use('/api/reportes', require('./routes/reporteRoutes'));
+
+app.use('/api/categorias', require('./routes/categoriaRoutes'));
 app.use('/api/usuarios', require('./routes/usuarioRoutes'));
 
 module.exports = { app, conectarDB };

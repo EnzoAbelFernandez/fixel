@@ -19,23 +19,33 @@ const uploadCSV = async (req, res) => {
     for await (const record of parser) {
       try {
         const nombre = record.nombre || record.name;
-        const categoria = record.categoria || record.category;
+        const categoriaNombre = record.categoria || record.category;
         const codigoBarras = record.codigoBarras || record.barcode || null;
         const codigoInterno = record.codigoInterno || record.codigo || null;
         const costo = parseFloat(record.costo || 0);
         const precioVenta = parseFloat(record.precioVenta || record.price || 0);
         const stock = parseInt(record.stock || 0, 10) || 0;
 
-        if (!nombre || !categoria || !costo || !precioVenta) {
+
+        if (!nombre || !categoriaNombre || !costo || !precioVenta) {
           skipped++;
           continue;
+        }
+
+        // Buscar o crear categoría por nombre
+        const Categoria = require('../models/Categoria');
+        let categoriaDoc = await Categoria.findOne({ nombre: categoriaNombre });
+        if (!categoriaDoc) {
+          categoriaDoc = new Categoria({ nombre: categoriaNombre });
+          await categoriaDoc.save();
         }
 
         // Buscar por codigoInterno o codigoBarras o nombre+categoria
         let producto = null;
         if (codigoInterno) producto = await Producto.findOne({ codigoInterno });
         if (!producto && codigoBarras) producto = await Producto.findOne({ codigoBarras });
-        if (!producto) producto = await Producto.findOne({ nombre, categoria });
+
+        if (!producto) producto = await Producto.findOne({ nombre, categoria: categoriaDoc._id });
 
         if (producto) {
           producto.costo = costo;
@@ -43,10 +53,11 @@ const uploadCSV = async (req, res) => {
           producto.stock = stock;
           producto.codigoBarras = codigoBarras || producto.codigoBarras;
           producto.codigoInterno = codigoInterno || producto.codigoInterno;
+          producto.categoria = categoriaDoc._id;
           await producto.save();
           updated++;
         } else {
-          const nuevo = new Producto({ nombre, categoria, codigoBarras, codigoInterno, costo, precioVenta, stock });
+          const nuevo = new Producto({ nombre, categoria: categoriaDoc._id, codigoBarras, codigoInterno, costo, precioVenta, stock });
           if (!nuevo.codigoInterno) {
             const counter = await Counter.findByIdAndUpdate({ _id: 'producto' }, { $inc: { seq: 1 } }, { upsert: true, new: true });
             nuevo.codigoInterno = `P-${String(counter.seq).padStart(6, '0')}`;
