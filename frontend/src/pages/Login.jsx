@@ -29,8 +29,8 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-box">
+        <img src="/favicon.png" alt="Fixcel" style={{ width: 120, height: 120, margin: '-24px auto 16px', display: 'block' }} />
         <h1>Fixcel</h1>
-        <p>Sistema de ventas e inventario</p>
         <form onSubmit={handleSubmit}>
           {error && <div className="alert error">{error}</div>}
           <div className="form-group">
