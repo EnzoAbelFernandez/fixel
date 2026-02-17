@@ -8,6 +8,12 @@ const formatLocalDate = (date = new Date()) => {
   return `${year}-${month}-${day}`
 }
 
+const parseLocalDate = (dateStr) => {
+  const [year, month, day] = String(dateStr || '').split('-').map(Number)
+  if (!year || !month || !day) return new Date()
+  return new Date(year, month - 1, day)
+}
+
 export default function Reportes() {
   const todayStr = formatLocalDate()
   const [mode, setMode] = useState('day') // 'day' o 'range'
@@ -55,9 +61,9 @@ export default function Reportes() {
   useEffect(() => { load() }, [mode, day, start, end])
 
   const changeDay = (delta) => {
-    const d = new Date(day)
+    const d = parseLocalDate(day)
     d.setDate(d.getDate() + delta)
-    setDay(d.toISOString().slice(0, 10))
+    setDay(formatLocalDate(d))
   }
 
   // Cambiar a modo rango y setear fechas por defecto

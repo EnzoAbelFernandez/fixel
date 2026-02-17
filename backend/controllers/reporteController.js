@@ -1,30 +1,36 @@
 const Venta = require('../models/Venta');
 const GarantiaPerdida = require('../models/GarantiaPerdida');
 
+const buildFechaFiltro = (start, end) => {
+  const filtro = {};
+
+  if (start && end && start === end) {
+    const offset = -3; // GMT-3
+    const ini = new Date(start);
+    ini.setUTCHours(0 - offset, 0, 0, 0);
+    const fin = new Date(end);
+    fin.setUTCHours(23 - offset, 59, 59, 999);
+    filtro.fecha = { $gte: ini, $lte: fin };
+    return filtro;
+  }
+
+  if (start || end) filtro.fecha = {};
+  if (start) filtro.fecha.$gte = new Date(start);
+  if (end) {
+    const offset = -3; // GMT-3
+    const e = new Date(end);
+    e.setUTCHours(23 - offset, 59, 59, 999);
+    filtro.fecha.$lte = e;
+  }
+
+  return filtro;
+};
+
 // Ventas por periodo: suma totalVenta, cantidad de ventas y productos vendidos
 const ventasPorPeriodo = async (req, res) => {
   try {
     const { start, end } = req.query;
-    const match = {};
-    if (start && end && start === end) {
-      // Solo un día: filtrar desde 00:00 hasta 23:59:59 en GMT-3
-      const offset = -3 // GMT-3
-      const ini = new Date(start)
-      ini.setUTCHours(0 - offset,0,0,0)
-      const fin = new Date(end)
-      fin.setUTCHours(23 - offset,59,59,999)
-      match.fecha = { $gte: ini, $lte: fin }
-    } else {
-      if (start || end) match.fecha = {}
-      if (start) match.fecha.$gte = new Date(start)
-      if (end) {
-        // Ajustar fin para cubrir todo el día local GMT-3
-        const offset = -3 // GMT-3
-        const e = new Date(end)
-        e.setUTCHours(23 - offset,59,59,999)
-        match.fecha.$lte = e
-      }
-    }
+    const match = buildFechaFiltro(start, end);
 
     const agg = [
       { $match: match },
@@ -55,24 +61,7 @@ const ventasPorPeriodo = async (req, res) => {
 const perdidasPorPeriodo = async (req, res) => {
   try {
     const { start, end } = req.query;
-    const filtro = {};
-    if (start && end && start === end) {
-      const offset = -3 // GMT-3
-      const ini = new Date(start)
-      ini.setUTCHours(0 - offset,0,0,0)
-      const fin = new Date(end)
-      fin.setUTCHours(23 - offset,59,59,999)
-      filtro.fecha = { $gte: ini, $lte: fin }
-    } else {
-      if (start || end) filtro.fecha = {}
-      if (start) filtro.fecha.$gte = new Date(start)
-      if (end) {
-        const offset = -3 // GMT-3
-        const e = new Date(end)
-        e.setUTCHours(23 - offset,59,59,999)
-        filtro.fecha.$lte = e
-      }
-    }
+    const filtro = buildFechaFiltro(start, end);
 
     const agg = [
       { $match: filtro },
@@ -91,16 +80,8 @@ const perdidasPorPeriodo = async (req, res) => {
 // Balance general: ingresos - costos - perdidas
 const balanceGeneral = async (req, res) => {
   try {
-    // Reusar ventasPorPeriodo y perdidasPorPeriodo logic but for all time or filtered by query
     const { start, end } = req.query;
-    const match = {};
-    if (start || end) match.fecha = {};
-    if (start) match.fecha.$gte = new Date(start);
-    if (end) {
-      const e = new Date(end);
-      e.setHours(23,59,59,999);
-      match.fecha.$lte = e;
-    }
+    const match = buildFechaFiltro(start, end);
 
     const ventasAgg = [
       { $match: match },
@@ -111,14 +92,7 @@ const balanceGeneral = async (req, res) => {
     const ventasRes = await Venta.aggregate(ventasAgg);
     const ventas = ventasRes[0] || { totalIngresos: 0, totalCosto: 0, gananciaNeta: 0 };
 
-    const perdidasFiltro = {};
-    if (start || end) perdidasFiltro.fecha = {};
-    if (start) perdidasFiltro.fecha.$gte = new Date(start);
-    if (end) {
-      const e2 = new Date(end);
-      e2.setHours(23,59,59,999);
-      perdidasFiltro.fecha.$lte = e2;
-    }
+    const perdidasFiltro = buildFechaFiltro(start, end);
 
     const perdidasAgg = [
       { $match: perdidasFiltro },
