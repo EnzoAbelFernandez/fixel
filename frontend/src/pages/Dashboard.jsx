@@ -7,6 +7,7 @@ export default function Dashboard() {
   return (
     <>
       <h1 className="page-title">Hola, {user?.nombre}</h1>
+
       <div className="grid-2">
         <Link to="/ventas" className="stat-card" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="value text-success">Nueva venta</div>

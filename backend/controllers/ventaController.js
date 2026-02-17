@@ -6,16 +6,68 @@ const Counter = require('../models/Counter');
 const PDFDocument = require('pdfkit');
 const stream = require('stream');
 
+const listarVentas = async (req, res) => {
+  try {
+    const { start, end, vendedorId, limit } = req.query;
+    const filtro = {};
+
+    if (start && end && start === end) {
+      const offset = -3; // GMT-3
+      const ini = new Date(start);
+      ini.setUTCHours(0 - offset, 0, 0, 0);
+      const fin = new Date(end);
+      fin.setUTCHours(23 - offset, 59, 59, 999);
+      filtro.fecha = { $gte: ini, $lte: fin };
+    } else {
+      if (start || end) filtro.fecha = {};
+      if (start) filtro.fecha.$gte = new Date(start);
+      if (end) {
+        const offset = -3; // GMT-3
+        const e = new Date(end);
+        e.setUTCHours(23 - offset, 59, 59, 999);
+        filtro.fecha.$lte = e;
+      }
+    }
+
+    if (req.user?.rol === 'Administrador') {
+      if (vendedorId) filtro.vendedor = vendedorId;
+    } else if (req.user?.id) {
+      filtro.vendedor = req.user.id;
+    }
+
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+
+    const ventas = await Venta.find(filtro)
+      .populate('vendedor', 'nombre email rol')
+      .populate('productos.producto', 'nombre')
+      .populate('combos.combo', 'nombre')
+      .sort({ fecha: -1 })
+      .limit(limitNum);
+
+    res.status(200).json(ventas);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: 'Error al obtener ventas' });
+  }
+};
+
 // Construye mapa productoId -> { cantidad, precioUnitario, costoUnitario } para decrementar stock
 const registrarVenta = async (req, res) => {
   try {
     const { vendedorId, productosVendidos = [], combosVendidos = [], descuento = 0, medioPago = 'Efectivo' } = req.body;
 
-    if (!vendedorId || (productosVendidos.length === 0 && combosVendidos.length === 0)) {
+    let vendedorIdFinal = vendedorId;
+    if (req.user?.rol !== 'Administrador') {
+      vendedorIdFinal = req.user?.id;
+    } else if (!vendedorIdFinal) {
+      vendedorIdFinal = req.user?.id;
+    }
+
+    if (!vendedorIdFinal || (productosVendidos.length === 0 && combosVendidos.length === 0)) {
       return res.status(400).json({ msg: 'Faltan datos: vendedorId y al menos un producto o combo son requeridos' });
     }
 
-    const vendedor = await Usuario.findById(vendedorId);
+    const vendedor = await Usuario.findById(vendedorIdFinal);
     if (!vendedor) return res.status(404).json({ msg: 'Vendedor no encontrado' });
 
     let totalAntesDescuento = 0;
@@ -105,7 +157,7 @@ const registrarVenta = async (req, res) => {
       const cnt = await Counter.findByIdAndUpdate({ _id: 'venta' }, { $inc: { seq: 1 } }, { upsert: true, new: true, session });
 
       nuevaVenta = new Venta({
-        vendedor: vendedorId,
+        vendedor: vendedorIdFinal,
         productos: detallesProductos,
         combos: detallesCombos,
         totalAntesDescuento,
@@ -140,7 +192,7 @@ const registrarVenta = async (req, res) => {
       }
       const cnt = await Counter.findByIdAndUpdate({ _id: 'venta' }, { $inc: { seq: 1 } }, { upsert: true, new: true });
       nuevaVenta = new Venta({
-        vendedor: vendedorId,
+        vendedor: vendedorIdFinal,
         productos: detallesProductos,
         combos: detallesCombos,
         totalAntesDescuento,
@@ -223,4 +275,4 @@ const exportVenta = async (req, res) => {
   }
 };
 
-module.exports = { registrarVenta, exportVenta };
+module.exports = { listarVentas, registrarVenta, exportVenta };

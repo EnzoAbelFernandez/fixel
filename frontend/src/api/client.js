@@ -44,6 +44,7 @@ export const productos = {
 }
 
 export const ventas = {
+  list: (params) => client.get('/ventas', { params }),
   create: (data) => client.post('/ventas', data),
   export: (id, format) => client.get(`/ventas/${id}/export?format=${format}`, { responseType: 'blob' })
 }
