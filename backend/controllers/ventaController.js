@@ -4,7 +4,6 @@ const Combo = require('../models/Combo');
 const Usuario = require('../models/Usuario');
 const Counter = require('../models/Counter');
 const PDFDocument = require('pdfkit');
-const stream = require('stream');
 
 const listarVentas = async (req, res) => {
   try {
@@ -239,36 +238,99 @@ const exportVenta = async (req, res) => {
       return res.send(csv);
     }
 
-    const doc = new PDFDocument();
-    const passthrough = new stream.PassThrough();
+    const doc = new PDFDocument({ size: 'A4', margin: 40 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=venta_${venta._id}.pdf`);
-    doc.pipe(passthrough);
-    doc.fontSize(16).text(`Factura #${venta.facturaNumero || ''}`, { underline: true });
-    doc.moveDown();
-    doc.fontSize(12).text(`Fecha: ${venta.fecha.toISOString()}`);
-    doc.text(`Vendedor: ${venta.vendedor.nombre || ''}`);
-    doc.text(`Medio de pago: ${venta.medioPago || 'Efectivo'}`);
-    doc.moveDown();
-    doc.text('Productos:');
-    venta.productos.forEach(p => {
-      const nombre = p.producto ? p.producto.nombre : p.producto;
-      doc.text(`- ${nombre} x${p.cantidad} @ ${p.precioVentaHistorico} (costo ${p.costoHistorico})`);
-    });
-    (venta.combos || []).forEach(c => {
-      const nombre = c.combo ? c.combo.nombre : c.combo;
-      doc.text(`- ${nombre} x${c.cantidad} (combo) @ ${c.precioVentaHistorico}`);
-    });
-    doc.moveDown();
-    if (venta.descuento > 0) {
-      doc.text(`Subtotal: ${venta.totalAntesDescuento}`);
-      doc.text(`Descuento: -${venta.descuento}`);
+    doc.pipe(res);
+
+    const formatMoney = (value) => `$${Number(value || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formatDate = (value) => new Date(value).toLocaleString('es-AR');
+
+    const vendedorNombre = venta.vendedor?.nombre || 'Sin vendedor';
+    const medioPagoNombre = venta.medioPago || 'Efectivo';
+
+    doc.fontSize(22).text('FIXCEL', { align: 'left' });
+    doc.fontSize(10).fillColor('#666666').text('Comprobante de venta', { align: 'left' });
+    doc.fillColor('#000000');
+
+    doc.moveDown(1);
+    doc.fontSize(12).text(`Factura N°: ${venta.facturaNumero || '-'}`);
+    doc.text(`Fecha: ${formatDate(venta.fecha)}`);
+    doc.text(`Vendedor: ${vendedorNombre}`);
+    doc.text(`Medio de pago: ${medioPagoNombre}`);
+
+    doc.moveDown(1.2);
+    doc.fontSize(12).text('Detalle', { underline: true });
+    doc.moveDown(0.4);
+
+    const colItem = 40;
+    const colCant = 330;
+    const colPrecio = 395;
+    const colSubtotal = 485;
+
+    doc.fontSize(10).fillColor('#555555');
+    doc.text('Ítem', colItem, doc.y);
+    doc.text('Cant.', colCant, doc.y, { width: 45, align: 'right' });
+    doc.text('P. Unit.', colPrecio, doc.y, { width: 75, align: 'right' });
+    doc.text('Subtotal', colSubtotal, doc.y, { width: 85, align: 'right' });
+    doc.fillColor('#000000');
+    doc.moveDown(0.3);
+
+    doc.moveTo(colItem, doc.y).lineTo(555, doc.y).strokeColor('#DDDDDD').stroke();
+    doc.moveDown(0.6);
+
+    const addRow = (descripcion, cantidad, precioUnitario) => {
+      const subtotal = (Number(cantidad) || 0) * (Number(precioUnitario) || 0);
+      doc.fontSize(10).text(descripcion, colItem, doc.y, { width: 275 });
+      doc.text(String(cantidad || 0), colCant, doc.y - 12, { width: 45, align: 'right' });
+      doc.text(formatMoney(precioUnitario), colPrecio, doc.y - 12, { width: 75, align: 'right' });
+      doc.text(formatMoney(subtotal), colSubtotal, doc.y - 12, { width: 85, align: 'right' });
+      doc.moveDown(0.6);
+    };
+
+    for (const p of venta.productos) {
+      const nombre = p.producto ? p.producto.nombre : 'Producto';
+      addRow(nombre, p.cantidad, p.precioVentaHistorico);
     }
-    doc.text(`Total venta: ${venta.totalVenta}`);
-    doc.text(`Total costo: ${venta.totalCosto}`);
-    doc.text(`Ganancia neta: ${venta.gananciaNeta}`);
+
+    for (const c of (venta.combos || [])) {
+      const nombre = c.combo ? `${c.combo.nombre} (Combo)` : 'Combo';
+      addRow(nombre, c.cantidad, c.precioVentaHistorico);
+    }
+
+    doc.moveDown(0.4);
+    doc.moveTo(colPrecio, doc.y).lineTo(555, doc.y).strokeColor('#DDDDDD').stroke();
+    doc.moveDown(0.6);
+
+    const subtotal = Number(venta.totalAntesDescuento || venta.totalVenta || 0);
+    const descuento = Number(venta.descuento || 0);
+    const total = Number(venta.totalVenta || 0);
+    const costo = Number(venta.totalCosto || 0);
+    const ganancia = Number(venta.gananciaNeta || 0);
+
+    doc.fontSize(10);
+    doc.text('Subtotal:', colPrecio, doc.y, { width: 75, align: 'right' });
+    doc.text(formatMoney(subtotal), colSubtotal, doc.y - 12, { width: 85, align: 'right' });
+    doc.moveDown(0.4);
+
+    if (descuento > 0) {
+      doc.text('Descuento:', colPrecio, doc.y, { width: 75, align: 'right' });
+      doc.text(`-${formatMoney(descuento)}`, colSubtotal, doc.y - 12, { width: 85, align: 'right' });
+      doc.moveDown(0.4);
+    }
+
+    doc.fontSize(12).text('TOTAL:', colPrecio, doc.y, { width: 75, align: 'right' });
+    doc.text(formatMoney(total), colSubtotal, doc.y - 14, { width: 85, align: 'right' });
+    doc.moveDown(1);
+
+    doc.fontSize(10).fillColor('#333333');
+    doc.text(`Costo total: ${formatMoney(costo)}`);
+    doc.text(`Ganancia neta: ${formatMoney(ganancia)}`);
+    doc.moveDown(1.2);
+    doc.fillColor('#666666').fontSize(9).text('Este comprobante es de uso interno y no reemplaza factura fiscal.', { align: 'center' });
+
     doc.end();
-    return doc.pipe(res);
+    return;
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: 'Error al exportar venta' });

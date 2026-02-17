@@ -67,6 +67,24 @@ export default function Reportes() {
     setMode('range')
   }
 
+  const downloadVenta = async (id, format = 'pdf') => {
+    try {
+      const response = await ventas.export(id, format)
+      const blob = new Blob([response.data], { type: format === 'pdf' ? 'application/pdf' : 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `venta_${id}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      alert('No se pudo exportar la venta')
+    }
+  }
+
   return (
     <>
       <h1 className="page-title">Reportes</h1>
@@ -132,6 +150,7 @@ export default function Reportes() {
                   <th>Items</th>
                   <th>Total</th>
                   <th>Pago</th>
+                  <th>Factura</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,6 +164,11 @@ export default function Reportes() {
                       <td>{items + combos}</td>
                       <td>${(v.totalVenta || 0).toLocaleString()}</td>
                       <td>{v.medioPago || '-'}</td>
+                      <td>
+                        <button className="secondary" style={{ padding: '6px 12px' }} onClick={() => downloadVenta(v._id, 'pdf')}>
+                          PDF
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
