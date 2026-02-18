@@ -109,223 +109,183 @@ export default function Ventas() {
     }
   }
 
+  const formatPrecio = (n) => (n != null ? `$${Number(n).toLocaleString('es-CL')}` : '-')
+  const productosFiltrados = productosList.filter((p) => {
+    const coincideBusqueda = !busqueda.trim() || p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())
+    const coincideCategoria = categoriaSeleccionada === 'todos' || (typeof p.categoria === 'object' ? p.categoria?._id === categoriaSeleccionada : p.categoria === categoriaSeleccionada)
+    return p.stock > 0 && coincideCategoria && coincideBusqueda
+  })
+
   return (
     <>
       <h1 className="page-title">Nueva venta</h1>
       {error && <div className="alert error">{error}</div>}
       {success && <div className="alert success">{success}</div>}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '260px 1fr 400px',
-        gap: 24,
-        height: 'calc(100vh - 110px)', // Ajusta según header/navbar
-        minHeight: 500
-      }}>
-        {/* Columna de categorías */}
-        <div className="card mb-2" style={{ padding: 0, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <h3 className="mb-2" style={{ padding: '16px 16px 0 16px' }}>Categorías</h3>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
-            <div
-              className={categoriaSeleccionada === 'todos' ? 'selected' : ''}
-              style={{ padding: 8, cursor: 'pointer', borderRadius: 4, background: categoriaSeleccionada === 'todos' ? 'var(--primary-light)' : 'none', fontWeight: categoriaSeleccionada === 'todos' ? 600 : 400, marginBottom: 4 }}
+      <div className="ventas-layout">
+        <aside className="ventas-categorias-card">
+          <h3 className="ventas-panel-title">Categorías</h3>
+          <div className="ventas-categorias-list">
+            <button
+              type="button"
+              className={`ventas-cat-item ${categoriaSeleccionada === 'todos' ? 'ventas-cat-item--active' : ''}`}
               onClick={() => setCategoriaSeleccionada('todos')}
             >
               Todos los productos
-            </div>
-            {categoriasList.map(cat => (
-              <div
+            </button>
+            {categoriasList.map((cat) => (
+              <button
                 key={cat._id}
-                className={categoriaSeleccionada === cat._id ? 'selected' : ''}
-                style={{ padding: 8, cursor: 'pointer', borderRadius: 4, background: categoriaSeleccionada === cat._id ? 'var(--primary-light)' : 'none', fontWeight: categoriaSeleccionada === cat._id ? 600 : 400, marginBottom: 4 }}
+                type="button"
+                className={`ventas-cat-item ${categoriaSeleccionada === cat._id ? 'ventas-cat-item--active' : ''}`}
                 onClick={() => setCategoriaSeleccionada(cat._id)}
               >
                 {cat.nombre}
-              </div>
+              </button>
             ))}
           </div>
-        </div>
+        </aside>
 
-        {/* Listado de productos filtrado */}
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div className="card mb-2" style={{ flex: '7 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <h3 className="mb-2" style={{ marginBottom: 0 }}>Productos</h3>
-              <input
-                type="text"
-                placeholder="Buscar producto..."
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                style={{ flex: 1, minWidth: 0, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--background)', color: '#fff' }}
-              />
+        <div className="ventas-centro">
+          <div className="ventas-productos-card">
+            <div className="ventas-panel-header">
+              <h3 className="ventas-panel-title">Productos</h3>
+              <div className="productos-search-wrap ventas-search-wrap">
+                <span className="productos-search-icon" aria-hidden>⌕</span>
+                <input
+                  type="search"
+                  className="productos-search"
+                  placeholder="Buscar producto..."
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  aria-label="Buscar producto"
+                />
+              </div>
             </div>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: 14,
-              flex: 1,
-              overflowY: 'auto',
-              padding: 4,
-              background: 'var(--background)',
-              alignContent: 'flex-start'
-            }}>
-              {productosList.filter((p) => {
-                const coincideBusqueda = busqueda.trim() === '' || p.nombre.toLowerCase().includes(busqueda.trim().toLowerCase());
-                const coincideCategoria = categoriaSeleccionada === 'todos' || (typeof p.categoria === 'object' ? p.categoria?._id === categoriaSeleccionada : p.categoria === categoriaSeleccionada);
-                return p.stock > 0 && coincideCategoria && coincideBusqueda;
-              }).map((p) => (
-                <div
+            <div className="ventas-grid">
+              {productosFiltrados.map((p) => (
+                <button
                   key={p._id}
+                  type="button"
+                  className="ventas-tile"
                   onClick={() => addToCarrito(p, 1)}
-                  style={{
-                    cursor: 'pointer',
-                    border: '2px solid #334155',
-                    borderRadius: 10,
-                    padding: '18px 8px 14px 8px',
-                    background: 'var(--background, #23293a)',
-                    boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)',
-                    textAlign: 'center',
-                    userSelect: 'none',
-                    transition: 'box-shadow 0.15s, border 0.15s',
-                    color: '#fff',
-                    fontFamily: 'inherit',
-                    fontSize: 15,
-                    fontWeight: 500,
-                  }}
-                  className="product-tile"
                   title="Agregar al carrito"
-                  onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 16px 0 rgba(0,0,0,0.10)'}
-                  onMouseOut={e => e.currentTarget.style.boxShadow = '0 2px 8px 0 rgba(0,0,0,0.04)'}
                 >
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{p.nombre}</div>
-                  <div style={{ color: 'var(--primary-light)', fontWeight: 800, fontSize: 18 }}>${p.precioVenta?.toLocaleString()}</div>
-                </div>
+                  <span className="ventas-tile-nombre">{p.nombre}</span>
+                  <span className="ventas-tile-precio">{formatPrecio(p.precioVenta)}</span>
+                </button>
               ))}
-              {productosList.filter((p) => p.stock > 0 && (categoriaSeleccionada === 'todos' || (typeof p.categoria === 'object' ? p.categoria?._id === categoriaSeleccionada : p.categoria === categoriaSeleccionada))).length === 0 && (
-                <p className="text-muted" style={{ gridColumn: '1/-1' }}>No hay productos en esta categoría</p>
+              {productosFiltrados.length === 0 && (
+                <p className="ventas-grid-empty">No hay productos en esta categoría</p>
               )}
             </div>
           </div>
 
-          <div className="card mb-2" style={{ flex: '3 1 0%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <h3 className="mb-2">Combos</h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: 14,
-              flex: 1,
-              overflowY: 'auto',
-              padding: 4,
-              background: 'var(--background)',
-              alignContent: 'flex-start'
-            }}>
+          <div className="ventas-combos-card">
+            <h3 className="ventas-panel-title">Combos</h3>
+            <div className="ventas-grid">
               {combosList.map((c) => {
                 const ok = tieneStockCombo(c)
                 return (
-                  <div
+                  <button
                     key={c._id}
+                    type="button"
+                    className={`ventas-tile ${!ok ? 'ventas-tile--disabled' : ''}`}
                     onClick={() => ok && addComboToCarrito(c, 1)}
-                    style={{
-                      cursor: ok ? 'pointer' : 'not-allowed',
-                      border: '2px solid #334155',
-                      borderRadius: 10,
-                      padding: '18px 8px 14px 8px',
-                      background: 'var(--background, #23293a)',
-                      boxShadow: '0 2px 8px 0 rgba(0,0,0,0.04)',
-                      textAlign: 'center',
-                      userSelect: 'none',
-                      transition: 'box-shadow 0.15s, border 0.15s',
-                      color: '#fff',
-                      fontFamily: 'inherit',
-                      fontSize: 15,
-                      fontWeight: 500,
-                      opacity: ok ? 1 : 0.5
-                    }}
-                    className="product-tile"
                     title={ok ? 'Agregar al carrito' : 'Sin stock'}
-                    onMouseOver={e => ok && (e.currentTarget.style.boxShadow = '0 4px 16px 0 rgba(0,0,0,0.10)')}
-                    onMouseOut={e => ok && (e.currentTarget.style.boxShadow = '0 2px 8px 0 rgba(0,0,0,0.04)')}
+                    disabled={!ok}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{c.nombre}</div>
-                    <div style={{ color: 'var(--primary-light)', fontWeight: 800, fontSize: 18 }}>${c.precioVenta?.toLocaleString()}</div>
-                    {!ok && <div className="text-danger" style={{ fontSize: '0.85rem', marginTop: 6 }}>Sin stock</div>}
-                  </div>
+                    <span className="ventas-tile-nombre">{c.nombre}</span>
+                    <span className="ventas-tile-precio">{formatPrecio(c.precioVenta)}</span>
+                    {!ok && <span className="ventas-tile-badge">Sin stock</span>}
+                  </button>
                 )
               })}
-              {combosList.length === 0 && <p className="text-muted" style={{ gridColumn: '1/-1' }}>No hay combos creados</p>}
+              {combosList.length === 0 && <p className="ventas-grid-empty">No hay combos creados</p>}
             </div>
           </div>
         </div>
 
-        <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <h3 className="mb-2">Carrito</h3>
+        <div className="ventas-carrito-card">
+          <h3 className="ventas-panel-title">Carrito</h3>
           {isAdmin && (
-            <div className="form-group mb-2">
-              <label>Vendedor</label>
-              <select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
+            <div className="ventas-carrito-vendedor">
+              <label htmlFor="ventas-vendedor">Vendedor</label>
+              <select id="ventas-vendedor" value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
                 <option value="">Seleccionar...</option>
-                {usuariosList.map((u) => <option key={u._id} value={u._id}>{u.nombre}</option>)}
+                {usuariosList.map((u) => (
+                  <option key={u._id} value={u._id}>{u.nombre}</option>
+                ))}
               </select>
             </div>
           )}
           {carrito.length === 0 && carritoCombos.length === 0 ? (
-            <p className="text-muted">Carrito vacío. Agregá productos o combos.</p>
+            <p className="ventas-carrito-vacio">Carrito vacío. Agregá productos o combos.</p>
           ) : (
             <>
-              <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16 }}>
+              <div className="ventas-carrito-items">
                 {carrito.map((c) => (
-                  <div key={c.productoId} className="flex mb-1" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div>{c.producto?.nombre}</div>
-                    <div className="flex" style={{ alignItems: 'center' }}>
-                      <button className="secondary" style={{ padding: '2px 8px', fontSize: 18 }} onClick={() => updateCantidad(c.productoId, c.cantidad - 1)}>-</button>
-                      <span style={{ margin: '0 10px', minWidth: 24, textAlign: 'center' }}>{c.cantidad}</span>
-                      <button className="secondary" style={{ padding: '2px 8px', fontSize: 18 }} onClick={() => updateCantidad(c.productoId, c.cantidad + 1)}>+</button>
-                      <span style={{ marginLeft: 8 }}>${((c.producto?.precioVenta || 0) * c.cantidad).toLocaleString()}</span>
-                      <button className="danger" style={{ padding: '4px 8px', marginLeft: 6 }} onClick={() => removeFromCarrito(c.productoId)}>×</button>
+                  <div key={c.productoId} className="ventas-carrito-item">
+                    <span className="ventas-carrito-item-nombre">{c.producto?.nombre}</span>
+                    <div className="ventas-carrito-item-controls">
+                      <button type="button" className="ventas-carrito-btn" onClick={() => updateCantidad(c.productoId, c.cantidad - 1)} aria-label="Menos">−</button>
+                      <span className="ventas-carrito-cant">{c.cantidad}</span>
+                      <button type="button" className="ventas-carrito-btn" onClick={() => updateCantidad(c.productoId, c.cantidad + 1)} aria-label="Más">+</button>
+                      <span className="ventas-carrito-item-precio">{formatPrecio((c.producto?.precioVenta || 0) * c.cantidad)}</span>
+                      <button type="button" className="ventas-carrito-btn ventas-carrito-btn-remove" onClick={() => removeFromCarrito(c.productoId)} aria-label="Quitar">×</button>
                     </div>
                   </div>
                 ))}
                 {carritoCombos.map((c) => (
-                  <div key={c.comboId} className="flex mb-1" style={{ justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                    <div>{c.combo?.nombre} x{c.cantidad}</div>
-                    <div className="flex">
-                      <input type="number" min="1" value={c.cantidad} onChange={(e) => updateComboCantidad(c.comboId, parseInt(e.target.value, 10) || 1)} style={{ width: 50 }} />
-                      <span style={{ marginLeft: 8 }}>${((c.combo?.precioVenta || 0) * c.cantidad).toLocaleString()}</span>
-                      <button className="danger" style={{ padding: '4px 8px', marginLeft: 6 }} onClick={() => removeComboFromCarrito(c.comboId)}>×</button>
+                  <div key={c.comboId} className="ventas-carrito-item">
+                    <span className="ventas-carrito-item-nombre">{c.combo?.nombre} ×{c.cantidad}</span>
+                    <div className="ventas-carrito-item-controls">
+                      <input
+                        type="number"
+                        min="1"
+                        value={c.cantidad}
+                        onChange={(e) => updateComboCantidad(c.comboId, parseInt(e.target.value, 10) || 1)}
+                        className="ventas-carrito-input-cant"
+                        aria-label="Cantidad"
+                      />
+                      <span className="ventas-carrito-item-precio">{formatPrecio((c.combo?.precioVenta || 0) * c.cantidad)}</span>
+                      <button type="button" className="ventas-carrito-btn ventas-carrito-btn-remove" onClick={() => removeComboFromCarrito(c.comboId)} aria-label="Quitar">×</button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="form-group">
-                <label>Descuento ($)</label>
-                <input type="number" min="0" step="0.01" value={descuento} onChange={(e) => setDescuento(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Medio de pago</label>
-                <select value={medioPago} onChange={(e) => setMedioPago(e.target.value)}>
-                  {MEDIOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+              <div className="ventas-carrito-form">
+                <div className="form-group">
+                  <label htmlFor="ventas-descuento">Descuento ($)</label>
+                  <input id="ventas-descuento" type="number" min="0" step="0.01" value={descuento} onChange={(e) => setDescuento(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="ventas-medio">Medio de pago</label>
+                  <select id="ventas-medio" value={medioPago} onChange={(e) => setMedioPago(e.target.value)}>
+                    {MEDIOS_PAGO.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
               </div>
 
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <div className="ventas-carrito-totales">
                 {descuentoNum > 0 && (
-                  <div className="flex mb-1" style={{ justifyContent: 'space-between' }}>
-                    <span>Subtotal</span>
-                    <span>${totalAntesDescuento.toLocaleString()}</span>
-                  </div>
+                  <>
+                    <div className="ventas-carrito-fila">
+                      <span>Subtotal</span>
+                      <span>{formatPrecio(totalAntesDescuento)}</span>
+                    </div>
+                    <div className="ventas-carrito-fila ventas-carrito-descuento">
+                      <span>Descuento</span>
+                      <span>−{formatPrecio(descuentoNum)}</span>
+                    </div>
+                  </>
                 )}
-                {descuentoNum > 0 && (
-                  <div className="flex mb-1" style={{ justifyContent: 'space-between', color: 'var(--success)' }}>
-                    <span>Descuento</span>
-                    <span>-${descuentoNum.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex" style={{ justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 700 }}>
+                <div className="ventas-carrito-total">
                   <span>Total</span>
-                  <span>${totalVenta.toLocaleString()}</span>
+                  <span>{formatPrecio(totalVenta)}</span>
                 </div>
-                <button className="mt-2" style={{ width: '100%' }} onClick={handleVender} disabled={loading}>
+                <button type="button" className="ventas-btn-vender" onClick={handleVender} disabled={loading}>
                   {loading ? 'Procesando...' : 'Registrar venta'}
                 </button>
               </div>

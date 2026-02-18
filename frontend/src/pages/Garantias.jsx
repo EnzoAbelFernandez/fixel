@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { garantias, productos } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 
@@ -9,8 +9,11 @@ export default function Garantias() {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ productoId: '', cantidad: 1, motivo: '' })
+  const [submitting, setSubmitting] = useState(false)
   const [filtroStart, setFiltroStart] = useState('')
   const [filtroEnd, setFiltroEnd] = useState('')
+  const [search, setSearch] = useState('')
+  const overlayClickStarted = useRef(false)
   const { isAdmin } = useAuth()
 
   const load = async () => {
@@ -38,6 +41,7 @@ export default function Garantias() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setSubmitting(true)
     try {
       await garantias.create({
         productoId: form.productoId,
@@ -50,83 +54,192 @@ export default function Garantias() {
       load()
     } catch (e) {
       setError(e.response?.data?.msg || 'Error al registrar')
+    } finally {
+      setSubmitting(false)
     }
   }
 
+  const filteredLista = lista.filter((g) => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    const nombre = (g.producto?.nombre || '').toLowerCase()
+    const motivo = (g.motivo || '').toLowerCase()
+    return nombre.includes(q) || motivo.includes(q)
+  })
+  const formatPrecio = (n) => (n != null ? `$${Number(n).toLocaleString('es-CL')}` : '-')
+
   return (
     <>
-      <div className="flex mb-2" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+      <div className="productos-header">
         <h1 className="page-title">Garantías / Pérdidas</h1>
-        <button onClick={() => setShowForm(true)}>Registrar pérdida</button>
+        <div className="productos-actions">
+          <button type="button" onClick={() => setShowForm(true)}>Registrar pérdida</button>
+        </div>
       </div>
 
       {error && <div className="alert error">{error}</div>}
 
       {showForm && (
-        <div className="card mb-2">
-          <h3 className="mb-2">Nueva pérdida o garantía</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="form-row">
-              <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-                <label>Producto</label>
-                <select value={form.productoId} onChange={(e) => setForm({ ...form, productoId: e.target.value })} required>
-                  <option value="">Seleccionar...</option>
+        <div
+          className="modal-overlay"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) overlayClickStarted.current = true }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && overlayClickStarted.current && !submitting) setShowForm(false)
+            overlayClickStarted.current = false
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-garantia-title"
+        >
+          <div
+            className="modal modal-producto"
+            onMouseDown={() => { overlayClickStarted.current = false }}
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 480 }}
+          >
+            <div className="modal-header">
+              <h3 id="modal-garantia-title">Nueva pérdida o garantía</h3>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => !submitting && setShowForm(false)}
+                aria-label="Cerrar"
+                disabled={submitting}
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="modal-form">
+              <div className="form-group">
+                <label htmlFor="garantia-producto">Producto *</label>
+                <select
+                  id="garantia-producto"
+                  value={form.productoId}
+                  onChange={(e) => setForm({ ...form, productoId: e.target.value })}
+                  required
+                >
+                  <option value="">Seleccionar producto...</option>
                   {productosList.map((p) => (
                     <option key={p._id} value={p._id}>{p.nombre} (stock: {p.stock})</option>
                   ))}
                 </select>
               </div>
-              <div className="form-group" style={{ width: 120 }}>
-                <label>Cantidad</label>
-                <input type="number" min="1" value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: e.target.value })} required />
+              <div className="form-group">
+                <label htmlFor="garantia-cantidad">Cantidad *</label>
+                <input
+                  id="garantia-cantidad"
+                  type="number"
+                  min="1"
+                  value={form.cantidad}
+                  onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
+                  required
+                />
               </div>
-              <div className="form-group" style={{ flex: 2, minWidth: 200 }}>
-                <label>Motivo</label>
-                <input value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} placeholder="Ej: Falla de fábrica" required />
+              <div className="form-group">
+                <label htmlFor="garantia-motivo">Motivo *</label>
+                <input
+                  id="garantia-motivo"
+                  value={form.motivo}
+                  onChange={(e) => setForm({ ...form, motivo: e.target.value })}
+                  placeholder="Ej: Falla de fábrica"
+                  required
+                />
               </div>
-              <div className="form-group" style={{ alignSelf: 'flex-end' }}>
-                <button type="button" className="secondary" onClick={() => setShowForm(false)}>Cancelar</button>
-                <button type="submit" style={{ marginLeft: 8 }}>Registrar</button>
+              <div className="modal-actions">
+                <button type="button" className="secondary" onClick={() => !submitting && setShowForm(false)} disabled={submitting}>
+                  Cancelar
+                </button>
+                <button type="submit" disabled={submitting}>
+                  {submitting ? 'Registrando...' : 'Registrar'}
+                </button>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
-      {isAdmin && (
-        <div className="flex mb-2" style={{ gap: 12 }}>
-          <input type="date" value={filtroStart} onChange={(e) => setFiltroStart(e.target.value)} />
-          <input type="date" value={filtroEnd} onChange={(e) => setFiltroEnd(e.target.value)} />
+      <div className="productos-toolbar">
+        <div className="productos-search-wrap">
+          <span className="productos-search-icon" aria-hidden>⌕</span>
+          <input
+            type="search"
+            className="productos-search"
+            placeholder="Buscar por producto o motivo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Buscar registros"
+          />
         </div>
-      )}
+        {isAdmin && (
+          <>
+            <label className="garantias-filtro-label" htmlFor="garantias-start">
+              Desde
+            </label>
+            <input
+              id="garantias-start"
+              type="date"
+              className="garantias-filtro-date"
+              value={filtroStart}
+              onChange={(e) => setFiltroStart(e.target.value)}
+              aria-label="Fecha desde"
+            />
+            <label className="garantias-filtro-label" htmlFor="garantias-end">
+              Hasta
+            </label>
+            <input
+              id="garantias-end"
+              type="date"
+              className="garantias-filtro-date"
+              value={filtroEnd}
+              onChange={(e) => setFiltroEnd(e.target.value)}
+              aria-label="Fecha hasta"
+            />
+          </>
+        )}
+        <span className="productos-count">
+          {filteredLista.length === lista.length
+            ? `${lista.length} registro${lista.length !== 1 ? 's' : ''}`
+            : `${filteredLista.length} de ${lista.length}`}
+        </span>
+      </div>
 
       {loading ? (
-        <p className="text-muted">Cargando...</p>
+        <div className="productos-loading">
+          <span className="productos-loading-text">Cargando registros...</span>
+        </div>
       ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Motivo</th>
-                <th>Costo perdido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.map((g) => (
-                <tr key={g._id}>
-                  <td>{new Date(g.fecha).toLocaleDateString()}</td>
-                  <td>{g.producto?.nombre || '-'}</td>
-                  <td>{g.cantidad}</td>
-                  <td>{g.motivo}</td>
-                  <td className="text-danger">${g.costoPerdido?.toLocaleString()}</td>
+        <div className="productos-card">
+          <div className="productos-table-wrap">
+            <table className="productos-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Producto</th>
+                  <th className="productos-th-num">Cantidad</th>
+                  <th>Motivo</th>
+                  <th className="productos-th-num">Costo perdido</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {lista.length === 0 && <p className="text-muted" style={{ padding: 20 }}>No hay registros</p>}
+              </thead>
+              <tbody>
+                {filteredLista.map((g) => (
+                  <tr key={g._id}>
+                    <td className="productos-cell-code">{new Date(g.fecha).toLocaleDateString('es-CL')}</td>
+                    <td className="productos-cell-name">{g.producto?.nombre || '—'}</td>
+                    <td className="productos-cell-num">{g.cantidad}</td>
+                    <td>{g.motivo}</td>
+                    <td className="productos-cell-num productos-cell-costo-perdido">{formatPrecio(g.costoPerdido)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {filteredLista.length === 0 && (
+            <div className="productos-empty">
+              {lista.length === 0
+                ? 'No hay registros de garantías o pérdidas.'
+                : 'Ningún registro coincide con la búsqueda.'}
+            </div>
+          )}
         </div>
       )}
     </>

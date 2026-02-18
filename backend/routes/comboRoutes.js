@@ -4,8 +4,9 @@ const { crearCombo, obtenerCombos, editarCombo, eliminarCombo } = require('../co
 const { auth, authorize } = require('../middleware/auth');
 
 router.get('/', auth, obtenerCombos);
-router.post('/', auth, authorize('Administrador'), crearCombo);
-router.put('/:id', auth, authorize('Administrador'), editarCombo);
-router.delete('/:id', auth, authorize('Administrador'), eliminarCombo);
+// Crear, editar y eliminar combo -> Administrador o Vendedor
+router.post('/', auth, authorize(['Administrador', 'Vendedor']), crearCombo);
+router.put('/:id', auth, authorize(['Administrador', 'Vendedor']), editarCombo);
+router.delete('/:id', auth, authorize(['Administrador', 'Vendedor']), eliminarCombo);
 
 module.exports = router;

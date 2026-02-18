@@ -43,7 +43,7 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       <Route path="/garantias" element={
-        <ProtectedRoute>
+        <ProtectedRoute adminOnly>
           <Layout><Garantias /></Layout>
         </ProtectedRoute>
       } />
