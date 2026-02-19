@@ -1030,12 +1030,14 @@ tr:hover { background: rgba(255,255,255,0.03); }
   .sidebar-header { justify-content: center; text-align: center; }
   .sidebar-brand { justify-content: center; transform: translateX(-8px); }
   .main { margin-left: 0 !important; padding-left: 52px; padding-right: 12px; padding-top: 12px; }
-  .ventas-categorias-card { flex-direction: column; }
+  .ventas-categorias-card { flex-direction: column; overflow: visible; }
   .ventas-cat-select {
     display: block;
     width: 100%;
-    margin: 10px 12px;
-    padding: 12px 14px;
+    min-height: 48px;
+    margin: 0;
+    padding: 12px 14px 12px 14px;
+    box-sizing: border-box;
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -1044,6 +1046,8 @@ tr:hover { background: rgba(255,255,255,0.03); }
     cursor: pointer;
     flex-shrink: 0;
   }
+  .ventas-categorias-card .ventas-panel-title { padding: 12px 14px; }
+  .ventas-categorias-card .ventas-cat-select { margin: 12px 12px 12px 12px; width: calc(100% - 24px); }
   .ventas-categorias-list { display: none; }
   .sidebar-toggle {
     left: 12px !important;
