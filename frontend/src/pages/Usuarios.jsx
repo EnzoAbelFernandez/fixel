@@ -68,42 +68,59 @@ export default function Usuarios() {
 
   return (
     <>
-      <div className="flex mb-2" style={{ justifyContent: 'space-between' }}>
+      <div className="productos-header">
         <h1 className="page-title">Usuarios</h1>
-        <button onClick={openCreate}>Nuevo usuario</button>
+        <div className="productos-actions">
+          <button type="button" onClick={openCreate}>Nuevo usuario</button>
+        </div>
       </div>
 
       {error && <div className="alert error">{error}</div>}
 
       {loading ? (
-        <p className="text-muted">Cargando...</p>
+        <div className="productos-loading">
+          <span className="productos-loading-text">Cargando usuarios...</span>
+        </div>
       ) : (
-        <div className="card" style={{ overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((u) => (
-                <tr key={u._id}>
-                  <td>{u.nombre}</td>
-                  <td>{u.email}</td>
-                  <td><span className={`badge ${u.rol === 'Administrador' ? 'admin' : 'vendedor'}`}>{u.rol}</span></td>
-                  <td>{u.activo !== false ? 'Activo' : 'Inactivo'}</td>
-                  <td>
-                    <button className="secondary" style={{ padding: '6px 12px', marginRight: 8 }} onClick={() => openEdit(u)}>Editar</button>
-                    <button className="danger" style={{ padding: '6px 12px' }} onClick={() => handleDelete(u._id)}>Eliminar</button>
-                  </td>
+        <div className="productos-card">
+          <div className="productos-table-wrap">
+            <table className="productos-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th className="productos-th-actions">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((u) => (
+                  <tr key={u._id}>
+                    <td className="productos-cell-name">{u.nombre}</td>
+                    <td className="productos-cell-code">{u.email}</td>
+                    <td>
+                      <span className={`badge ${u.rol === 'Administrador' ? 'admin' : 'vendedor'}`}>
+                        {u.rol}
+                      </span>
+                    </td>
+                    <td>{u.activo !== false ? 'Activo' : 'Inactivo'}</td>
+                    <td className="productos-cell-actions">
+                      <button type="button" className="productos-btn productos-btn-edit" onClick={() => openEdit(u)} title="Editar">
+                        Editar
+                      </button>
+                      <button type="button" className="productos-btn productos-btn-delete" onClick={() => handleDelete(u._id)} title="Eliminar">
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {items.length === 0 && (
+            <div className="productos-empty">No hay usuarios registrados.</div>
+          )}
         </div>
       )}
 

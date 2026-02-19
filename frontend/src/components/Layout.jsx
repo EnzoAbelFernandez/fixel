@@ -1,9 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Layout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return !window.matchMedia('(max-width: 768px)').matches
+  })
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const handler = () => setSidebarOpen(!mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
   const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
 
@@ -11,6 +20,8 @@ export default function Layout({ children }) {
     logout()
     navigate('/login')
   }
+
+  const closeSidebar = () => setSidebarOpen(false)
 
   return (
     <div className={`app ${!sidebarOpen ? 'sidebar-closed' : ''}`}>
@@ -20,8 +31,10 @@ export default function Layout({ children }) {
         title={sidebarOpen ? 'Ocultar menú' : 'Mostrar menú'}
         aria-label={sidebarOpen ? 'Ocultar menú' : 'Mostrar menú'}
       >
-        {sidebarOpen ? '‹' : '›'}
+        <span className="sidebar-toggle-icon sidebar-toggle-icon-desktop">{sidebarOpen ? '‹' : '›'}</span>
+        <span className="sidebar-toggle-icon sidebar-toggle-icon-mobile">{sidebarOpen ? '×' : '☰'}</span>
       </button>
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={closeSidebar} aria-hidden />}
       <aside className={`sidebar ${sidebarOpen ? '' : 'sidebar-hidden'}`}>
         <header className="sidebar-header">
           <div className="sidebar-brand">
@@ -30,13 +43,13 @@ export default function Layout({ children }) {
           </div>
         </header>
         <nav className="sidebar-nav" aria-label="Principal">
-          <NavLink to="/" end>Inicio</NavLink>
-          <NavLink to="/productos">Productos</NavLink>
-          <NavLink to="/combos">Combos</NavLink>
-          <NavLink to="/ventas">Nueva venta</NavLink>
-          {isAdmin && <NavLink to="/garantias">Garantías / Pérdidas</NavLink>}
-          {isAdmin && <NavLink to="/reportes">Reportes</NavLink>}
-          {isAdmin && <NavLink to="/usuarios">Usuarios</NavLink>}
+          <NavLink to="/" end onClick={closeSidebar}>Inicio</NavLink>
+          <NavLink to="/productos" onClick={closeSidebar}>Productos</NavLink>
+          <NavLink to="/combos" onClick={closeSidebar}>Combos</NavLink>
+          <NavLink to="/ventas" onClick={closeSidebar}>Nueva venta</NavLink>
+          {isAdmin && <NavLink to="/garantias" onClick={closeSidebar}>Garantías / Pérdidas</NavLink>}
+          {isAdmin && <NavLink to="/reportes" onClick={closeSidebar}>Reportes</NavLink>}
+          {isAdmin && <NavLink to="/usuarios" onClick={closeSidebar}>Usuarios</NavLink>}
         </nav>
         <div className="sidebar-spacer" aria-hidden />
         <div className="sidebar-user">

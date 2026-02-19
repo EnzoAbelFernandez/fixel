@@ -125,6 +125,17 @@ export default function Ventas() {
       <div className="ventas-layout">
         <aside className="ventas-categorias-card">
           <h3 className="ventas-panel-title">Categorías</h3>
+          <select
+            className="ventas-cat-select"
+            value={categoriaSeleccionada}
+            onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+            aria-label="Filtrar por categoría"
+          >
+            <option value="todos">Todos los productos</option>
+            {categoriasList.map((cat) => (
+              <option key={cat._id} value={cat._id}>{cat.nombre}</option>
+            ))}
+          </select>
           <div className="ventas-categorias-list">
             <button
               type="button"
